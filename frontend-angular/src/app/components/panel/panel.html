@@ -1,0 +1,463 @@
+<div class="d-flex min-vh-100 bg-light">
+  
+  <!-- ========================================== -->
+  <!-- 1. FRANJA LATERAL IZQUIERDA (SIDEBAR)      -->
+  <!-- ========================================== -->
+  <aside class="sidebar bg-dark text-white p-3 d-flex flex-column shadow" style="width: 260px; min-width: 260px;">
+    
+    <!-- Logo / Encabezado del Sistema -->
+    <div class="sidebar-header pb-3 mb-3 border-bottom border-secondary">
+      <div class="d-flex align-items-center">
+        <i class="bi bi-stack fs-3 text-primary me-2"></i>
+        <div>
+          <h5 class="fw-bold mb-0 text-white">Gestión App</h5>
+          <small class="text-secondary">.NET 10 + Angular</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Menú de Selección: Cabeceras y Detalles -->
+    <div class="nav nav-pills flex-column mb-auto gap-2">
+      
+      <div class="text-uppercase small fw-bold text-secondary px-2 mt-2 mb-1">
+        Módulos del Sistema
+      </div>
+
+      <!-- Opción 1: DETALLES (EJECUCIONES) -->
+      <button 
+        (click)="cambiarSeccion('detalles')" 
+        class="nav-link text-start d-flex justify-content-between align-items-center"
+        [class.active]="seccionActiva === 'detalles'"
+        [class.text-white-50]="seccionActiva !== 'detalles'">
+        <span>
+          <i class="bi bi-list-task me-2 fs-5"></i>Detalles de Operación
+        </span>
+        <span class="badge bg-primary rounded-pill">{{ ejecuciones.length }}</span>
+      </button>
+
+      <!-- Opción 2: CABECERAS (CLIENTES) -->
+      <button 
+        (click)="cambiarSeccion('cabeceras')" 
+        class="nav-link text-start d-flex justify-content-between align-items-center"
+        [class.active]="seccionActiva === 'cabeceras'"
+        [class.text-white-50]="seccionActiva !== 'cabeceras'">
+        <span>
+          <i class="bi bi-building me-2 fs-5"></i>Cabeceras (Clientes)
+        </span>
+        <span class="badge bg-info text-dark rounded-pill">{{ cabeceras.length }}</span>
+      </button>
+
+    </div>
+
+    <!-- Pie del Sidebar con Estado del Servidor -->
+    <div class="sidebar-footer pt-3 border-top border-secondary text-secondary small">
+      <div class="d-flex align-items-center">
+        <span class="badge bg-success rounded-circle p-1 me-2"> </span>
+        <span>API: <strong>localhost:5264</strong></span>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ========================================== -->
+  <!-- 2. CONTENIDO PRINCIPAL (DERECHA)           -->
+  <!-- ========================================== -->
+  <main class="flex-grow-1 p-4 overflow-auto">
+
+    <!-- ENCABEZADO SUPERIOR DINÁMICO -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <div>
+        <h2 class="fw-bold text-dark mb-1">
+          <i class="bi me-2 text-primary" [ngClass]="seccionActiva === 'detalles' ? 'bi-list-check' : 'bi-building-gear'"></i>
+          {{ seccionActiva === 'detalles' ? 'Listado de Detalles de Operación' : 'Listado de Cabeceras (Clientes)' }}
+        </h2>
+        <p class="text-muted mb-0">
+          {{ seccionActiva === 'detalles' ? 'Administración de costos, IGV y registro de ejecuciones' : 'Directorio de empresas y clientes registrados' }}
+        </p>
+      </div>
+
+      <!-- Botón de Acción según Sección -->
+      @if (seccionActiva === 'detalles') {
+        <button (click)="abrirModalCrear()" class="btn btn-primary btn-lg shadow-sm">
+          <i class="bi bi-plus-circle me-2"></i>Nueva Operación
+        </button>
+      }
+    </div>
+
+    <!-- TARJETAS DE MÉTRICAS (KPIs) -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm border-start border-primary border-4 p-3 bg-white">
+          <div class="text-muted small text-uppercase fw-bold">Total Operaciones</div>
+          <div class="fs-3 fw-bold text-primary">{{ ejecuciones.length }}</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm border-start border-success border-4 p-3 bg-white">
+          <div class="text-muted small text-uppercase fw-bold">Facturación Total</div>
+          <div class="fs-3 fw-bold text-success">{{ totalMonto | currency:'PEN':'S/. ' }}</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm border-start border-warning border-4 p-3 bg-white">
+          <div class="text-muted small text-uppercase fw-bold">IGV (18%)</div>
+          <div class="fs-3 fw-bold text-warning">{{ totalIgv | currency:'PEN':'S/. ' }}</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm border-start border-info border-4 p-3 bg-white">
+          <div class="text-muted small text-uppercase fw-bold">Total Clientes</div>
+          <div class="fs-3 fw-bold text-info">{{ cabeceras.length }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TABLA Y CONTROL DE FILTRO / PAGINACIÓN -->
+    <div class="card border-0 shadow-sm">
+      
+      <!-- Barra de Filtros -->
+      <div class="card-header bg-white py-3">
+        <div class="row g-2 align-items-center">
+          <div class="col-md-6">
+            <div class="input-group">
+              <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+              <input 
+                type="text" 
+                [(ngModel)]="filtroTexto" 
+                (ngModelChange)="paginaActual = 1" 
+                class="form-control border-start-0 bg-light" 
+                [placeholder]="seccionActiva === 'detalles' ? 'Buscar por descripción o cliente...' : 'Buscar cliente...'">
+            </div>
+          </div>
+          <div class="col-md-6 text-md-end">
+            <label class="me-2 text-muted small">Registros:</label>
+            <select [(ngModel)]="registrosPorPagina" (change)="paginaActual = 1" class="form-select form-select-sm d-inline-block w-auto">
+              <option [value]="5">5 por página</option>
+              <option [value]="10">10 por página</option>
+              <option [value]="20">20 por página</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cuerpo de la Tabla -->
+      <div class="card-body p-0">
+        @if (cargando) {
+          <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2 text-muted">Consultando API .NET...</p>
+          </div>
+        } @else {
+
+          <!-- ============================================== -->
+          <!-- TABLA A: DETALLES DE OPERACIÓN                 -->
+          <!-- ============================================== -->
+          @if (seccionActiva === 'detalles') {
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-uppercase small text-muted">
+                  <tr>
+                    <th class="ps-4">#ID</th>
+                    <th>Cliente (Cabecera)</th>
+                    <th>Descripción</th>
+                    <th class="text-center">Cant.</th>
+                    <th class="text-end">Importe</th>
+                    <th class="text-end">IGV (18%)</th>
+                    <th class="text-end">Total</th>
+                    <th class="text-center pe-4">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (item of detallesPaginados; track item.idDetalleOperacion) {
+                    <tr>
+                      <td class="ps-4 fw-bold text-secondary">#{{ item.idDetalleOperacion }}</td>
+                      <td>
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1">
+                          <i class="bi bi-building me-1"></i>{{ item.cabeceraOperacion?.cliente || 'Cliente #' + item.idCabeceraOperacion }}
+                        </span>
+                      </td>
+                      <td class="fw-semibold">{{ item.descripcion }}</td>
+                      <td class="text-center">{{ item.cantidad }}</td>
+                      <td class="text-end">{{ item.importe | currency:'PEN':'S/. ' }}</td>
+                      <td class="text-end text-muted">{{ item.igv | currency:'PEN':'S/. ' }}</td>
+                      <td class="text-end fw-bold text-success">{{ item.total | currency:'PEN':'S/. ' }}</td>
+                      <td class="text-center pe-4">
+                        <div class="btn-group btn-group-sm" role="group">
+                          <!-- Botón "Ver Más / Detallar" -->
+                          <button (click)="abrirVerMasDetalle(item)" class="btn btn-outline-info" title="Ver Detalle Completo">
+                            <i class="bi bi-eye"></i> Ver más
+                          </button>
+                          <!-- Botón Editar -->
+                          <button (click)="abrirModalEditar(item)" class="btn btn-outline-primary" title="Editar">
+                            <i class="bi bi-pencil"></i>
+                          </button>
+                          <!-- Botón Eliminar -->
+                          <button (click)="eliminar(item.idDetalleOperacion)" class="btn btn-outline-danger" title="Eliminar">
+                            <i class="bi bi-trash"></i>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="8" class="text-center py-4 text-muted">No se encontraron operaciones registradas.</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+
+          <!-- ============================================== -->
+          <!-- TABLA B: CABECERAS (CLIENTES)                  -->
+          <!-- ============================================== -->
+          @if (seccionActiva === 'cabeceras') {
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-uppercase small text-muted">
+                  <tr>
+                    <th class="ps-4">#ID Cabecera</th>
+                    <th>Razón Social / Cliente</th>
+                    <th>Fecha de Registro</th>
+                    <th class="text-center">Operaciones Asociadas</th>
+                    <th class="text-center pe-4">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (cab of cabecerasPaginadas; track cab.idCabeceraOperacion) {
+                    <tr>
+                      <td class="ps-4 fw-bold text-secondary">#{{ cab.idCabeceraOperacion }}</td>
+                      <td class="fw-semibold">
+                        <i class="bi bi-building text-primary me-2"></i>{{ cab.cliente }}
+                      </td>
+                      <td class="text-muted">
+                        <i class="bi bi-calendar3 me-1"></i>{{ cab.registro ? (cab.registro | date:'dd/MM/yyyy') : 'Sin fecha' }}
+                      </td>
+                      <td class="text-center">
+                        <span class="badge bg-secondary-subtle text-dark border px-2 py-1">
+                          {{ obtenerOperacionesPorCabecera(cab.idCabeceraOperacion).length }} operaciones
+                        </span>
+                      </td>
+                      <td class="text-center pe-4">
+                        <!-- Botón "Detallar / Ver Operaciones de esta Cabecera" -->
+                        <button (click)="abrirVerMasCabecera(cab)" class="btn btn-sm btn-outline-primary">
+                          <i class="bi bi-card-checklist me-1"></i>Ver Operaciones
+                        </button>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="5" class="text-center py-4 text-muted">No se encontraron clientes registrados.</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+
+        }
+      </div>
+
+      <!-- PIE CON PAGINACIÓN DINÁMICA -->
+      <div class="card-footer bg-white d-flex justify-content-between align-items-center py-3">
+        <small class="text-muted">
+          Página <strong>{{ paginaActual }}</strong> de <strong>{{ totalPaginas }}</strong> 
+          (Total: {{ totalRegistrosActivos }} registros)
+        </small>
+        <div class="btn-group">
+          <button (click)="cambiarPagina(paginaActual - 1)" [disabled]="paginaActual === 1" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-chevron-left me-1"></i>Anterior
+          </button>
+          <button (click)="cambiarPagina(paginaActual + 1)" [disabled]="paginaActual >= totalPaginas" class="btn btn-outline-secondary btn-sm">
+            Siguiente<i class="bi bi-chevron-right ms-1"></i>
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+</div>
+
+<!-- ======================================================== -->
+<!-- 3. MODAL "VER MÁS / DETALLAR" (CONSULTA Y DESGLOSE)     -->
+<!-- ======================================================== -->
+@if (mostrarModalVerMas) {
+  <div class="modal fade show d-block" style="background: rgba(0,0,0,0.5);" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content border-0 shadow">
+        
+        <div class="modal-header bg-dark text-white">
+          <h5 class="modal-title">
+            <i class="bi bi-info-circle text-info me-2"></i>
+            {{ detalleSeleccionado ? 'Detalle de la Operación #' + detalleSeleccionado.idDetalleOperacion : 'Detalle de Cabecera: ' + cabeceraSeleccionada?.cliente }}
+          </h5>
+          <button (click)="cerrarModalVerMas()" type="button" class="btn-close btn-close-white"></button>
+        </div>
+
+        <div class="modal-body p-4">
+
+          <!-- Caso A: Detalle de una Operación Específica -->
+          @if (detalleSeleccionado) {
+            <div class="card border-0 bg-light p-3 mb-3">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <div class="text-muted small">Cliente / Empresa:</div>
+                  <div class="fw-bold fs-5 text-primary">
+                    <i class="bi bi-building me-1"></i>
+                    {{ detalleSeleccionado.cabeceraOperacion?.cliente || 'Cliente #' + detalleSeleccionado.idCabeceraOperacion }}
+                  </div>
+                </div>
+                <div class="col-md-6 text-md-end">
+                  <div class="text-muted small">Identificador de Operación:</div>
+                  <div class="badge bg-dark fs-6">ID #{{ detalleSeleccionado.idDetalleOperacion }}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mb-4">
+              <label class="text-muted small fw-bold text-uppercase">Descripción del Trabajo Realizado:</label>
+              <p class="fs-5 fw-semibold mb-0 p-3 bg-white border rounded">
+                {{ detalleSeleccionado.descripcion }}
+              </p>
+            </div>
+
+            <div class="row g-3 text-center mb-3">
+              <div class="col-4">
+                <div class="p-3 bg-white border rounded">
+                  <div class="text-muted small">Cantidad</div>
+                  <div class="fs-4 fw-bold">{{ detalleSeleccionado.cantidad }}</div>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="p-3 bg-white border rounded">
+                  <div class="text-muted small">Importe Base</div>
+                  <div class="fs-4 fw-bold text-secondary">{{ detalleSeleccionado.importe | currency:'PEN':'S/. ' }}</div>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="p-3 bg-white border rounded">
+                  <div class="text-muted small">IGV (18%)</div>
+                  <div class="fs-4 fw-bold text-warning">{{ detalleSeleccionado.igv | currency:'PEN':'S/. ' }}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="alert alert-success d-flex justify-content-between align-items-center mb-0 p-3">
+              <span class="fs-5 fw-bold"><i class="bi bi-cash-stack me-2"></i>Monto Total Facturado:</span>
+              <span class="fs-3 fw-bold">{{ detalleSeleccionado.total | currency:'PEN':'S/. ' }}</span>
+            </div>
+          }
+
+          <!-- Caso B: Ver Operaciones asociadas a la Cabecera -->
+          @if (cabeceraSeleccionada) {
+            <div class="alert alert-info py-2">
+              <i class="bi bi-building me-1"></i>
+              Cliente: <strong>{{ cabeceraSeleccionada.cliente }}</strong> 
+              (Fecha de registro: {{ cabeceraSeleccionada.registro ? (cabeceraSeleccionada.registro | date:'dd/MM/yyyy') : 'N/A' }})
+            </div>
+
+            <h6 class="fw-bold mb-3">Operaciones vinculadas a este cliente:</h6>
+            
+            @if (obtenerOperacionesPorCabecera(cabeceraSeleccionada.idCabeceraOperacion).length === 0) {
+              <p class="text-muted text-center py-3">Este cliente aún no tiene operaciones registradas.</p>
+            } @else {
+              <div class="table-responsive">
+                <table class="table table-bordered table-sm align-middle">
+                  <thead class="table-light">
+                    <tr>
+                      <th>#ID</th>
+                      <th>Descripción</th>
+                      <th class="text-center">Cant.</th>
+                      <th class="text-end">Importe</th>
+                      <th class="text-end">IGV</th>
+                      <th class="text-end">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (op of obtenerOperacionesPorCabecera(cabeceraSeleccionada.idCabeceraOperacion); track op.idDetalleOperacion) {
+                      <tr>
+                        <td>#{{ op.idDetalleOperacion }}</td>
+                        <td>{{ op.descripcion }}</td>
+                        <td class="text-center">{{ op.cantidad }}</td>
+                        <td class="text-end">{{ op.importe | currency:'PEN':'S/. ' }}</td>
+                        <td class="text-end">{{ op.igv | currency:'PEN':'S/. ' }}</td>
+                        <td class="text-end fw-bold text-success">{{ op.total | currency:'PEN':'S/. ' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          }
+
+        </div>
+
+        <div class="modal-footer bg-light">
+          <button (click)="cerrarModalVerMas()" class="btn btn-secondary px-4">Cerrar</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ======================================================== -->
+<!-- 4. MODAL PARA CREAR / EDITAR OPERACIÓN                  -->
+<!-- ======================================================== -->
+@if (mostrarModal) {
+  <div class="modal fade show d-block" style="background: rgba(0,0,0,0.5);" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow">
+        
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title">
+            <i class="bi" [ngClass]="modoEdicion ? 'bi-pencil-square' : 'bi-plus-circle'"></i>
+            {{ modoEdicion ? 'Editar Operación #' + operacionEdicion.idDetalleOperacion : 'Nueva Operación' }}
+          </h5>
+          <button (click)="cerrarModal()" type="button" class="btn-close btn-close-white"></button>
+        </div>
+
+        <div class="modal-body p-4">
+          <div class="mb-3">
+            <label class="form-label fw-bold">Cliente (Cabecera):</label>
+            <select [(ngModel)]="operacionEdicion.idCabeceraOperacion" class="form-select">
+              @for (cab of cabeceras; track cab.idCabeceraOperacion) {
+                <option [value]="cab.idCabeceraOperacion">{{ cab.cliente }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold">Descripción del trabajo:</label>
+            <input type="text" [(ngModel)]="operacionEdicion.descripcion" class="form-control" placeholder="Ej. Instalaciones sanitarias...">
+          </div>
+
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label fw-bold">Cantidad:</label>
+              <input type="number" [(ngModel)]="operacionEdicion.cantidad" class="form-control" min="1">
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-bold">Importe Base (S/.):</label>
+              <input type="number" [(ngModel)]="operacionEdicion.importe" class="form-control" min="0">
+            </div>
+          </div>
+
+          <div class="alert alert-info py-2 small mb-0">
+            <i class="bi bi-info-circle me-1"></i> El <strong>IGV (18%)</strong> y el <strong>Total</strong> se calculan automáticamente en el Backend .NET.
+          </div>
+        </div>
+
+        <div class="modal-footer bg-light">
+          <button (click)="cerrarModal()" class="btn btn-secondary">Cancelar</button>
+          <button (click)="guardar()" class="btn btn-primary fw-bold px-4">
+            <i class="bi bi-save me-1"></i>Guardar Registro
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+}
