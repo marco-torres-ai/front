@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { EjecucionesService } from '../../services/ejecuciones.services';
 import { DetalleOperacion } from '../../models/detalle.model';
-import { CabeceraOperacion } from '../../models/cabecera.model';
 
 @Component({
   selector: 'app-panel',
@@ -16,209 +15,170 @@ export class PanelComponent implements OnInit {
   // 1. INYECCIÓN DEL SERVICIO HTTP
   private ejecucionesService = inject(EjecucionesService);
 
-  // 2. CONTROL DE SECCIÓN ACTIVA EN LA FRANJA IZQUIERDA (SIDEBAR)
-  seccionActiva: 'detalles' | 'cabeceras' = 'detalles';
+  // 2. VARIABLES DE CONTROL DE LA INTERFAZ (UI)
+  sidebarContraido: boolean = false;
+  dashboardAbierto: boolean = true;
+  usuario: string = 'Marco Torres (UNJFSC)';
 
-  // 3. DATOS EN MEMORIA
-  ejecuciones: DetalleOperacion[] = [];
-  cabeceras: CabeceraOperacion[] = [];
-  cargando: boolean = true;
-  filtroTexto: string = '';
+  // 3. ESTADOS DE LA VISTA
+  cargando: boolean = false;
+  mostrarTabla: boolean = false;
+  error: boolean = false;
 
-  // 4. PAGINACIÓN
-  paginaActual: number = 1;
-  registrosPorPagina: number = 5;
+  // 4. LISTA DE DATOS (Recibidos del Backend)
+  detalleEjecucion: DetalleOperacion[] = [];
 
-  // 5. CONTROL DE MODALES (CREAR / EDITAR)
-  mostrarModal: boolean = false;
+  // 5. CONTROL DE MODALES (CREAR / EDITAR / VER DETALLE)
+  mostrarModalFormulario: boolean = false;
   modoEdicion: boolean = false;
-  operacionEdicion: DetalleOperacion = this.limpiarFormulario();
+  mostrarModalDetalle: boolean = false;
+  itemSeleccionado: DetalleOperacion | null = null;
 
-  // 6. CONTROL DE MODAL "VER MÁS / DETALLAR"
-  mostrarModalVerMas: boolean = false;
-  detalleSeleccionado: DetalleOperacion | null = null;
-  cabeceraSeleccionada: CabeceraOperacion | null = null;
+  // Objeto enlazado al formulario con [(ngModel)]
+  formulario: DetalleOperacion = this.limpiarFormulario();
 
   ngOnInit(): void {
-    this.cargarDatos();
-    this.cargarCabeceras();
+    // Si deseas que cargue automáticamente al abrir la página, descomenta la siguiente línea:
+    // this.cargarDetalleEjecucion();
   }
 
-  // --- CARGA DE DATOS DESDE LA API ---
-  cargarDatos(): void {
+  // --- MÉTODOS DEL SIDEBAR ---
+  toggleSidebar(): void {
+    this.sidebarContraido = !this.sidebarContraido;
+  }
+
+  toggleDashboard(): void {
+    this.dashboardAbierto = !this.dashboardAbierto;
+  }
+
+  // --- OBTENER DATOS (GET) ---
+  cargarDetalleEjecucion(): void {
     this.cargando = true;
+    this.error = false;
+    this.mostrarTabla = false;
+
     this.ejecucionesService.getEjecuciones().subscribe({
       next: (datos) => {
-        this.ejecuciones = datos;
+        this.detalleEjecucion = datos;
         this.cargando = false;
+        this.mostrarTabla = true;
       },
       error: (err) => {
-        console.error('Error cargando ejecuciones:', err);
+        console.error('Error al conectar con la API:', err);
         this.cargando = false;
+        this.error = true;
       }
     });
   }
 
-  cargarCabeceras(): void {
-    this.ejecucionesService.getCabeceras().subscribe({
-      next: (datos) => (this.cabeceras = datos),
-      error: (err) => console.error('Error cargando cabeceras:', err)
+  // --- VER DETALLE POR ID (GET) ---
+  verDetalle(id?: number): void {
+    if (!id) return;
+    const encontrado = this.detalleEjecucion.find(x => x.idDetalleOperacion === id);
+    if (encontrado) {
+      this.itemSeleccionado = encontrado;
+      this.mostrarModalDetalle = true;
+    } else {
+      this.ejecucionesService.getEjecucionById(id).subscribe({
+        next: (data) => {
+          this.itemSeleccionado = data;
+          this.mostrarModalDetalle = true;
+        },
+        error: (err) => console.error('Error al buscar detalle:', err)
+      });
+    }
+  }
+
+  // --- ABRIR MODAL CREAR ---
+  abrirModalCrear(): void {
+    this.modoEdicion = false;
+    this.formulario = this.limpiarFormulario();
+    this.mostrarModalFormulario = true;
+  }
+
+  // --- ABRIR MODAL EDITAR ---
+  abrirModalEditar(item: DetalleOperacion): void {
+    this.modoEdicion = true;
+    // Clonamos el objeto con {...item} para no modificar la fila de la tabla hasta guardar
+    this.formulario = { ...item };
+    this.mostrarModalFormulario = true;
+  }
+
+  // --- CÁLCULO EN TIEMPO REAL DEL IGV Y TOTAL ---
+  calcularTotales(): void {
+    const cant = this.formulario.cantidad || 0;
+    const imp = this.formulario.importe || 0;
+    const subtotal = cant * imp;
+    this.formulario.igv = parseFloat((subtotal * 0.18).toFixed(2));
+    this.formulario.total = parseFloat((subtotal + this.formulario.igv).toFixed(2));
+  }
+
+  // --- GUARDAR (POST O PUT) ---
+  guardar(): void {
+    this.calcularTotales();
+
+    if (this.modoEdicion && this.formulario.idDetalleOperacion) {
+      // ACTUALIZAR (PUT)
+      this.ejecucionesService.actualizarEjecucion(this.formulario.idDetalleOperacion, this.formulario).subscribe({
+        next: () => {
+          alert('¡Ejecución actualizada con éxito!');
+          this.cerrarModalFormulario();
+          this.cargarDetalleEjecucion();
+        },
+        error: (err) => {
+          console.error('Error al actualizar:', err);
+          alert('Error al actualizar el registro.');
+        }
+      });
+    } else {
+      // CREAR (POST)
+      this.ejecucionesService.crearEjecucion(this.formulario).subscribe({
+        next: () => {
+          alert('¡Ejecución creada exitosamente!');
+          this.cerrarModalFormulario();
+          this.cargarDetalleEjecucion();
+        },
+        error: (err) => {
+          console.error('Error al crear:', err);
+          alert('Error al registrar la ejecución.');
+        }
+      });
+    }
+  }
+
+  // --- ELIMINAR (DELETE) ---
+  eliminar(id?: number): void {
+    if (!id) return;
+    const confirmar = confirm(`¿Estás seguro de eliminar el registro #${id}?`);
+    if (!confirmar) return;
+
+    this.ejecucionesService.eliminarEjecucion(id).subscribe({
+      next: () => {
+        alert('Registro eliminado.');
+        this.cargarDetalleEjecucion();
+      },
+      error: (err) => {
+        console.error('Error al eliminar:', err);
+        alert('No se pudo eliminar el registro.');
+      }
     });
   }
 
-  // --- CAMBIO DE SECCIÓN DESDE EL MENÚ LATERAL ---
-  cambiarSeccion(seccion: 'detalles' | 'cabeceras'): void {
-    this.seccionActiva = seccion;
-    this.paginaActual = 1;
-    this.filtroTexto = '';
+  // --- MÉTODOS AUXILIARES ---
+  cerrarModalFormulario(): void {
+    this.mostrarModalFormulario = false;
+    this.formulario = this.limpiarFormulario();
   }
 
-  // --- FILTRADO Y PAGINACIÓN PARA DETALLES ---
-  get detallesFiltrados(): DetalleOperacion[] {
-    if (!this.filtroTexto) return this.ejecuciones;
-    const txt = this.filtroTexto.toLowerCase();
-    return this.ejecuciones.filter(
-      (item) =>
-        item.descripcion.toLowerCase().includes(txt) ||
-        item.cabeceraOperacion?.cliente?.toLowerCase().includes(txt)
-    );
-  }
-
-  get detallesPaginados(): DetalleOperacion[] {
-    const inicio = (this.paginaActual - 1) * this.registrosPorPagina;
-    const fin = inicio + this.registrosPorPagina;
-    return this.detallesFiltrados.slice(inicio, fin);
-  }
-
-  // --- FILTRADO Y PAGINACIÓN PARA CABECERAS ---
-  get cabecerasFiltradas(): CabeceraOperacion[] {
-    if (!this.filtroTexto) return this.cabeceras;
-    const txt = this.filtroTexto.toLowerCase();
-    return this.cabeceras.filter((c) =>
-      c.cliente?.toLowerCase().includes(txt)
-    );
-  }
-
-  get cabecerasPaginadas(): CabeceraOperacion[] {
-    const inicio = (this.paginaActual - 1) * this.registrosPorPagina;
-    const fin = inicio + this.registrosPorPagina;
-    return this.cabecerasFiltradas.slice(inicio, fin);
-  }
-
-  // Total de páginas dinámico según la sección activa
-  get totalPaginas(): number {
-    const totalRegistros =
-      this.seccionActiva === 'detalles'
-        ? this.detallesFiltrados.length
-        : this.cabecerasFiltradas.length;
-    return Math.ceil(totalRegistros / this.registrosPorPagina) || 1;
-  }
-
-  get totalRegistrosActivos(): number {
-    return this.seccionActiva === 'detalles'
-      ? this.detallesFiltrados.length
-      : this.cabecerasFiltradas.length;
-  }
-
-  cambiarPagina(nuevaPagina: number): void {
-    if (nuevaPagina >= 1 && nuevaPagina <= this.totalPaginas) {
-      this.paginaActual = nuevaPagina;
-    }
-  }
-
-  // --- MÉTRICAS (KPIS) ---
-  get totalMonto(): number {
-    return this.ejecuciones.reduce((acum, item) => acum + (item.total || 0), 0);
-  }
-
-  get totalIgv(): number {
-    return this.ejecuciones.reduce((acum, item) => acum + (item.igv || 0), 0);
-  }
-
-  // --- ACCIÓN "VER MÁS / DETALLAR" ---
-  abrirVerMasDetalle(item: DetalleOperacion): void {
-    this.detalleSeleccionado = item;
-    this.cabeceraSeleccionada = null;
-    this.mostrarModalVerMas = true;
-  }
-
-  abrirVerMasCabecera(cab: CabeceraOperacion): void {
-    this.cabeceraSeleccionada = cab;
-    this.detalleSeleccionado = null;
-    this.mostrarModalVerMas = true;
-  }
-
-  cerrarModalVerMas(): void {
-    this.mostrarModalVerMas = false;
-    this.detalleSeleccionado = null;
-    this.cabeceraSeleccionada = null;
-  }
-
-  // Obtener operaciones asociadas a una cabecera para la vista detallada
-  obtenerOperacionesPorCabecera(idCabecera: number): DetalleOperacion[] {
-    return this.ejecuciones.filter((x) => x.idCabeceraOperacion === idCabecera);
-  }
-
-  // --- CRUD (CREAR / EDITAR) ---
-  abrirModalCrear(): void {
-    this.modoEdicion = false;
-    this.operacionEdicion = this.limpiarFormulario();
-    this.mostrarModal = true;
-  }
-
-  abrirModalEditar(item: DetalleOperacion): void {
-    this.modoEdicion = true;
-    this.operacionEdicion = { ...item };
-    this.mostrarModal = true;
-  }
-
-  cerrarModal(): void {
-    this.mostrarModal = false;
-  }
-
-  guardar(): void {
-    if (!this.operacionEdicion.descripcion || !this.operacionEdicion.idCabeceraOperacion) {
-      alert('Por favor complete la descripción y seleccione un cliente.');
-      return;
-    }
-
-    if (this.modoEdicion && this.operacionEdicion.idDetalleOperacion) {
-      this.ejecucionesService
-        .actualizarEjecucion(this.operacionEdicion.idDetalleOperacion, this.operacionEdicion)
-        .subscribe({
-          next: () => {
-            this.cerrarModal();
-            this.cargarDatos();
-          },
-          error: (err) => alert('Error al actualizar: ' + err.message)
-        });
-    } else {
-      this.ejecucionesService.crearEjecucion(this.operacionEdicion).subscribe({
-        next: () => {
-          this.cerrarModal();
-          this.cargarDatos();
-        },
-        error: (err) => alert('Error al registrar: ' + err.message)
-      });
-    }
-  }
-
-  eliminar(id: number | undefined): void {
-    if (!id) return;
-    if (confirm(`¿Desea eliminar la operación #${id}?`)) {
-      this.ejecucionesService.eliminarEjecucion(id).subscribe({
-        next: () => this.cargarDatos(),
-        error: (err) => alert('Error al eliminar: ' + err.message)
-      });
-    }
-  }
-
-  limpiarFormulario(): DetalleOperacion {
+  private limpiarFormulario(): DetalleOperacion {
     return {
+      idDetalleOperacion: 0,
       descripcion: '',
       cantidad: 1,
       importe: 0,
-      idCabeceraOperacion: this.cabeceras.length > 0 ? this.cabeceras[0].idCabeceraOperacion : 1
+      igv: 0,
+      total: 0,
+      idCabeceraOperacion: 1
     };
   }
 }
